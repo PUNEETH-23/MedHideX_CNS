@@ -1,0 +1,192 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: #020617;
+  color: white;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  border: 0;
+  color: white;
+  cursor: pointer;
+}
+
+.nav-shell {
+  align-items: center;
+  background: rgba(3, 12, 20, 0.78);
+  border-bottom: 1px solid rgba(0, 212, 224, 0.12);
+  backdrop-filter: blur(16px);
+  display: flex;
+  justify-content: space-between;
+  min-height: 68px;
+  padding: 0 32px;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.brand {
+  color: #e8f6fa;
+  font-family: Georgia, serif;
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.brand span {
+  color: #00d4e0;
+}
+
+.nav-links {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.nav-links a,
+.nav-button {
+  background: transparent;
+  color: #8db9c4;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.nav-links a:hover,
+.nav-button:hover {
+  color: #e8f6fa;
+}
+
+.nav-cta {
+  background: linear-gradient(135deg, #006d7a, #009aa8) !important;
+  border-radius: 10px;
+  color: white !important;
+  padding: 10px 16px;
+}
+
+@media (max-width: 760px) {
+  .nav-shell {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 14px;
+    padding: 18px 20px;
+  }
+}
+
+.min-h-screen { min-height: 100vh; }
+.w-full { width: 100%; }
+.max-w-2xl { max-width: 42rem; }
+.max-w-3xl { max-width: 48rem; }
+.max-w-md { max-width: 28rem; }
+.h-16 { height: 4rem; }
+.w-16 { width: 4rem; }
+
+.bg-slate-950 { background-color: #020617; }
+.bg-slate-900 { background-color: #0f172a; }
+.bg-slate-800 { background-color: #1e293b; }
+.bg-slate-700 { background-color: #334155; }
+.bg-cyan-600 { background-color: #0891b2; }
+
+.text-white { color: #ffffff; }
+.text-slate-400 { color: #94a3b8; }
+.text-cyan-400 { color: #22d3ee; }
+.text-red-400 { color: #f87171; }
+
+.block { display: block; }
+.flex { display: flex; }
+.grid { display: grid; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.flex-col { flex-direction: column; }
+
+.gap-6 { gap: 1.5rem; }
+.p-3 { padding: 0.75rem; }
+.p-4 { padding: 1rem; }
+.p-6 { padding: 1.5rem; }
+.p-8 { padding: 2rem; }
+.p-10 { padding: 2.5rem; }
+.px-6 { padding-left: 1.5rem; padding-right: 1.5rem; }
+.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-4 { margin-bottom: 1rem; }
+.mb-6 { margin-bottom: 1.5rem; }
+.mb-8 { margin-bottom: 2rem; }
+.mb-10 { margin-bottom: 2.5rem; }
+.mt-4 { margin-top: 1rem; }
+.mt-8 { margin-top: 2rem; }
+.mt-10 { margin-top: 2.5rem; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+
+.rounded-lg { border-radius: 0.5rem; }
+.rounded-xl { border-radius: 0.75rem; }
+.rounded-2xl { border-radius: 1rem; }
+.rounded-full { border-radius: 9999px; }
+
+.border-4 { border-width: 4px; border-style: solid; }
+.border-slate-700 { border-color: #334155; }
+.border-t-cyan-400 { border-top-color: #22d3ee; }
+
+.text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+.text-xl { font-size: 1.25rem; line-height: 1.75rem; }
+.text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+.text-4xl { font-size: 2.25rem; line-height: 2.5rem; }
+.text-5xl { font-size: 3rem; line-height: 1; }
+.font-bold { font-weight: 700; }
+
+.transition { transition: background-color 150ms ease; }
+.hover\:bg-slate-700:hover { background-color: #334155; }
+
+.auth-input {
+  background-color: #334155;
+  border: 1px solid #475569;
+  border-radius: 0.5rem;
+  color: white;
+  display: block;
+  outline: none;
+  padding: 0.75rem;
+  width: 100%;
+}
+
+.auth-input:focus {
+  border-color: #22d3ee;
+}
+
+.download-link {
+  background-color: #0891b2;
+  border-radius: 0.75rem;
+  display: inline-block;
+  margin-right: 1rem;
+  margin-top: 1rem;
+  padding: 0.75rem 1.5rem;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@media (min-width: 768px) {
+  .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .md\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

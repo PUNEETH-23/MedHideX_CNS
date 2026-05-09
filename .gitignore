@@ -1,0 +1,60 @@
+# Python
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+venv/
+.venv/
+Backend/venv/
+
+# Backend generated files
+uploads/
+stego/
+extracted/
+keys/
+Backend/uploads/
+Backend/stego/
+Backend/extracted/
+Backend/keys/
+*.pem
+
+# Frontend dependencies and builds
+node_modules/
+Frontend/node_modules/
+Frontend/MedHideX/node_modules/
+Frontend/MedHideX/dist/
+Frontend/MedHideX/.vite/
+dist/
+.vite/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local databases and temporary files
+*.sqlite
+*.sqlite3
+*.db
+tmp/
+temp/
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
