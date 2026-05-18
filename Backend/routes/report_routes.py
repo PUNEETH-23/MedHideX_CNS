@@ -4,7 +4,7 @@ from bson import ObjectId
 from fastapi import APIRouter, Depends
 
 from Auth.auth_handler import get_current_user
-from database.mongo import files_collection, reports_collection
+from database.mongo import audit_logs_collection, files_collection, reports_collection
 
 
 router = APIRouter()
@@ -39,8 +39,13 @@ def get_reports(current_user: str = Depends(get_current_user)):
     for file_record in files_collection.find({"username": current_user}):
         encrypted_files.append(serialize_document(file_record))
 
+    audit_logs = []
+    for log in audit_logs_collection.find({"username": current_user}):
+        audit_logs.append(serialize_document(log))
+
     return {
         "username": current_user,
         "reports": reports,
         "encrypted_files": encrypted_files,
+        "audit_logs": audit_logs,
     }

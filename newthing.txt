@@ -1,2 +1,8 @@
-hey for the binary mask make it embedded to a audio which is also given in the by the user an then give output of a video of length of the audio and all the frame would be the stegnography image, when audio is inputed no of frame asre calculated for 30fps by using the no of secs in the audio and the creates a video it's 1st frame has metadata of the remaining frames and the encrypted data is divided into n number of chunks n is the no of frames - 1 and then it is randomly assigned to each frame then its metadata is in the 1st frame
-this also works for every/most type of 
+The user provides a medical image, medical document, and an audio file. The medical document is first encrypted using AES-256, and the AES key is secured using RSA-2048 encryption. A binary noise mask used for adaptive steganographic embedding is generated and hidden inside the user-provided audio using audio steganography.
+
+The duration of the audio file is used to calculate the total number of video frames at 30 FPS. A video is then generated in which every frame visually contains the steganographic medical image. The first frame is reserved as the metadata frame, which stores encrypted information about the remaining frames, including chunk mapping, payload structure, frame allocation, integrity hash, and extraction parameters.
+
+The encrypted medical payload is divided into N chunks, where N equals the total number of frames minus one. These chunks are randomly distributed across the remaining video frames using adaptive multi-bit LSB steganography. During extraction, the receiver first retrieves the binary mask from the audio, then extracts metadata from the first frame, reconstructs the payload using the frame mapping information, verifies integrity using SHA-256, and finally decrypts the medical document using RSA and AES decryption.
+
+
+update readme and for output give stegnoimage aslo with mask image and audio and add audio metric comparison also

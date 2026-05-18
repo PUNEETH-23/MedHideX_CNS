@@ -8,6 +8,7 @@ opencv-python
 numpy
 pillow
 scikit-image
+imageio-ffmpeg
 
 python-jose
 passlib

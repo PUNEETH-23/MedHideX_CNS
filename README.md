@@ -18,7 +18,7 @@ The sender encrypts a medical document, builds a secure payload, compresses it w
 - PNG binary mask generation
 - WAV audio steganography for hiding the PNG binary mask
 - MP3 or WAV carrier upload, plus browser-recorded WAV carrier audio
-- Single MP4 stego video output with embedded recovery data
+- Single MP4 stego video output with playable audio and embedded recovery data
 - Original filename/extension recovery for files such as PDFs
 - Extraction status note showing that the recovered payload came from encrypted data
 - PSNR and SSIM image quality metrics
@@ -136,8 +136,9 @@ Collections:
 - `users`: username and hashed password records
 - `files`: encrypted file metadata, encrypted AES key, hash, payload, file size, owner username, and timestamp
 - `reports`: user-specific workflow history for encryption, embedding, extraction, decryption, and metrics
+- `audit_logs`: detailed step-by-step events for registration, login, encryption, embedding, media generation, extraction, decryption, metrics, downloads, validation failures, and errors
 
-The history API filters records by the authenticated user, so each user only sees their own activity.
+The history API filters user-specific reports, encrypted files, and audit logs by the authenticated user, so each user only sees their own activity. Download audit logs are stored without a username because download links are served by filename.
 
 ## Frontend
 
@@ -230,7 +231,9 @@ Sender side:
 7. The compressed payload is embedded into a cover image using 3 LSB bits per RGB channel.
 8. The binary mask is saved as a black/white PNG.
 9. The mask PNG bytes are embedded into carrier audio using audio LSB. MP3 carrier uploads are supported directly; if `ffmpeg` is unavailable, the MP3 bytes are used as the carrier pattern inside a generated WAV.
-10. An MP4 video is generated for sharing. The exact stego image and stego audio are embedded inside the MP4 file so recovery does not depend on lossy video frames.
+10. A 30 FPS MP4 video is generated for sharing, with frame count calculated from the audio duration.
+11. The stego WAV is muxed into the MP4 as a playable audio track.
+12. The exact stego image and stego audio are also embedded inside the MP4 file so recovery does not depend on lossy video frames.
 
 Receiver side:
 
@@ -286,6 +289,7 @@ Frontend/MedHideX/dist
 
 - Carrier audio can be uploaded as MP3 or WAV, or recorded in the browser as WAV.
 - Generated stego image and stego audio are embedded inside the final MP4 file. Extraction requires only the MP4.
+- Playable MP4 audio requires `ffmpeg`; the project includes `imageio-ffmpeg` in backend requirements so `pip install -r Backend/Requirements.txt` can provide it without a system install.
 - The MP4 visual track is for convenient viewing/sharing. Recovery uses the exact hidden stego image stored inside the file, so MP4 compression does not damage decryption.
 - If `ffmpeg` is installed, MP3 carrier audio can be decoded normally. Without `ffmpeg`, the backend still accepts MP3 by using its bytes as the carrier pattern inside a generated WAV.
 - Huffman compression can increase very small payloads because it stores a frequency table, but it helps with larger or repetitive payloads.
@@ -305,3 +309,51 @@ The app creates runtime files in:
 - `Backend/keys/`
 
 These are ignored by `.gitignore`.
+
+## Output Files
+
+The embedding process generates the following output files:
+
+### Stego Image
+The stego image contains the embedded payload using 3-bit LSB steganography:
+```
+stego/stego_*.png
+```
+
+### Mask Image
+The binary mask showing which pixels were modified:
+```
+stego/mask_*.png
+```
+
+### Stego Audio
+The audio file with the PNG mask embedded inside:
+```
+stego/audio_mask_*.wav
+```
+
+### Stego Video
+The final MP4 video containing the stego image and audio for recovery:
+```
+stego/stego_video_*.mp4
+```
+
+## Metrics
+
+### Image Metrics
+
+| Metric | Description | Typical Value |
+|--------|-------------|---------------|
+| PSNR | Peak Signal-to-Noise Ratio | > 50 dB |
+| SSIM | Structural Similarity Index | 0.99 - 1.0 |
+
+### Audio Metrics
+
+| Metric | Description | Typical Value |
+|--------|-------------|---------------|
+| SNR | Signal-to-Noise Ratio | > 40 dB |
+| PSNR | Audio Peak Signal-to-Noise Ratio | > 60 dB |
+| MSE | Mean Squared Error | < 10 |
+| Correlation | Correlation between original and stego audio | 0.99 - 1.0 |
+
+Higher PSNR and SSIM values indicate better image quality preservation. Higher SNR and correlation values indicate better audio quality preservation. Lower MSE indicates less distortion.

@@ -56,13 +56,16 @@ def extract_first_frame(video_path, output_path):
 
 
 def mux_audio_into_video(video_path, audio_path, output_path):
-    if shutil.which("ffmpeg") is None:
-        _append_audio_to_video(video_path, audio_path, output_path)
-        return output_path
+    ffmpeg = get_ffmpeg_executable()
+
+    if ffmpeg is None:
+        raise ValueError(
+            "Playable MP4 audio requires ffmpeg. Run pip install -r Backend/Requirements.txt."
+        )
 
     subprocess.run(
         [
-            "ffmpeg",
+            ffmpeg,
             "-y",
             "-i",
             video_path,
@@ -71,7 +74,9 @@ def mux_audio_into_video(video_path, audio_path, output_path):
             "-c:v",
             "copy",
             "-c:a",
-            "pcm_s16le",
+            "aac",
+            "-b:a",
+            "128k",
             "-shortest",
             output_path,
         ],
@@ -142,11 +147,11 @@ def extract_audio_from_video(video_path, output_path):
     if _extract_appended_audio(video_path, output_path):
         return output_path
 
-    _ensure_ffmpeg()
+    ffmpeg = _ensure_ffmpeg()
 
     subprocess.run(
         [
-            "ffmpeg",
+            ffmpeg,
             "-y",
             "-i",
             video_path,
@@ -163,8 +168,26 @@ def extract_audio_from_video(video_path, output_path):
 
 
 def _ensure_ffmpeg():
-    if shutil.which("ffmpeg") is None:
+    ffmpeg = get_ffmpeg_executable()
+
+    if ffmpeg is None:
         raise ValueError("This video does not contain embedded recovery audio")
+
+    return ffmpeg
+
+
+def get_ffmpeg_executable():
+    ffmpeg = shutil.which("ffmpeg")
+
+    if ffmpeg:
+        return ffmpeg
+
+    try:
+        import imageio_ffmpeg
+
+        return imageio_ffmpeg.get_ffmpeg_exe()
+    except Exception:
+        return None
 
 
 def _append_audio_to_video(video_path, audio_path, output_path):

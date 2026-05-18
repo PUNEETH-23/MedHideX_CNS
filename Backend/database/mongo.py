@@ -13,3 +13,5 @@ reports_collection = db["reports"]
 users_collection = db["users"]
 
 files_collection = db["files"]
+
+audit_logs_collection = db["audit_logs"]

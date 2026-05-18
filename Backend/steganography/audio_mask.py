@@ -1,9 +1,10 @@
-import shutil
 import subprocess
 import wave
 
 import cv2
 import numpy as np
+
+from steganography.video_util import get_ffmpeg_executable
 
 
 LENGTH_PREFIX_BITS = 32
@@ -15,7 +16,7 @@ def prepare_audio_carrier(audio_path, content_type, output_path):
         return audio_path
 
     if content_type in {"audio/mpeg", "audio/mp3"}:
-        if shutil.which("ffmpeg") is None:
+        if get_ffmpeg_executable() is None:
             _build_wav_from_file_bytes(audio_path, output_path)
             return output_path
 
@@ -96,9 +97,11 @@ def get_wav_duration(audio_path):
 
 
 def _convert_mp3_to_wav(audio_path, output_path):
+    ffmpeg = get_ffmpeg_executable()
+
     subprocess.run(
         [
-            "ffmpeg",
+            ffmpeg,
             "-y",
             "-i",
             audio_path,
