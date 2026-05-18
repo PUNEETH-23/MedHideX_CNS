@@ -10,9 +10,9 @@ function UploadSlot({ label, accept, onChange, fileName }) {
       <label className="med-upload-box">
         <input type="file" accept={accept} onChange={onChange} />
         {fileName
-          ? <span style={{ color: "#00d4e0", fontWeight: 600 }}>📄 {fileName}</span>
+          ? <span style={{ color: "#00d4e0", fontWeight: 600 }}>{fileName}</span>
           : <>
-              <span style={{ fontSize: 22, opacity: 0.4 }}>⬆</span>
+              <span style={{ fontSize: 22, opacity: 0.4 }}>Upload</span>
               <br />
               Drop file here or <span style={{ color: "#00d4e0" }}>browse</span>
             </>
@@ -37,8 +37,7 @@ function StepLabel({ n, text }) {
 }
 
 function ExtractPage() {
-  const [imageFile, setImageFile] = useState(null);
-  const [maskFile, setMaskFile] = useState(null);
+  const [videoFile, setVideoFile] = useState(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -48,8 +47,7 @@ function ExtractPage() {
       setLoading(true); setError(""); setResult(null);
 
       const formData = new FormData();
-      formData.append("image", imageFile);
-      formData.append("mask_file", maskFile);
+      formData.append("image", videoFile);
       const extractResponse = await API.post("/extract", formData);
       const payload = extractResponse.data.payload;
 
@@ -80,32 +78,20 @@ function ExtractPage() {
 
       <main style={{ padding: "48px 40px 80px", maxWidth: 680, margin: "0 auto" }}>
         <div style={{ marginBottom: 32 }}>
-          <div style={badge}>
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M12 3v12m0 0-4-4m4 4 4-4"/><rect x="3" y="17" width="18" height="4" rx="1"/>
-            </svg>
-            Extract & Decrypt
-          </div>
+          <div style={badge}>Extract & Decrypt</div>
           <h1 className="med-h1">Payload <span style={{ color: "#34d399" }}>Recovery</span></h1>
           <p className="med-subhead">
-            Extracts the hidden payload from a stego image using the mask file, then decrypts it back to the original medical document.
+            Upload the stego video. The app extracts both the visual payload and embedded audio mask, then decrypts the document.
           </p>
         </div>
 
         <div className="med-card">
-          <StepLabel n={1} text="Upload Stego Image" />
+          <StepLabel n={1} text="Upload Stego Video" />
           <UploadSlot
-            label="Stego Image (PNG)"
-            accept="image/*"
-            onChange={e => setImageFile(e.target.files[0])}
-            fileName={imageFile?.name}
-          />
-
-          <StepLabel n={2} text="Upload Mask File" />
-          <UploadSlot
-            label="Mask File"
-            onChange={e => setMaskFile(e.target.files[0])}
-            fileName={maskFile?.name}
+            label="Stego Video"
+            accept="video/mp4,.mp4"
+            onChange={e => setVideoFile(e.target.files[0])}
+            fileName={videoFile?.name}
           />
 
           <div className="med-divider" />
@@ -113,20 +99,15 @@ function ExtractPage() {
           <button
             className="med-btn"
             onClick={handleExtract}
-            disabled={loading || !imageFile || !maskFile}
+            disabled={loading || !videoFile}
             style={{
-              opacity: (!imageFile || !maskFile) ? 0.5 : 1,
+              opacity: !videoFile ? 0.5 : 1,
               background: "linear-gradient(135deg, #065f46, #059669)",
             }}
           >
             {loading
               ? <><span>Extracting</span><span className="med-spinner" style={{ borderTopColor: "#34d399" }} /></>
-              : <>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M12 3v12m0 0-4-4m4 4 4-4"/><rect x="3" y="17" width="18" height="4" rx="1"/>
-                  </svg>
-                  Extract &amp; Decrypt
-                </>
+              : "Extract & Decrypt"
             }
           </button>
 
@@ -134,11 +115,17 @@ function ExtractPage() {
 
           {result && (
             <div className="med-result" style={{ borderColor: "rgba(52,211,153,0.2)", background: "rgba(52,211,153,0.04)" }}>
-              <p className="med-result-title" style={{ color: "#34d399" }}>✓ Recovery Successful</p>
+              <p className="med-result-title" style={{ color: "#34d399" }}>Recovery Successful</p>
+              {result.encryption_note && (
+                <div className="med-result-row">
+                  <span>Status</span>
+                  <span>{result.encryption_note}</span>
+                </div>
+              )}
               <div className="med-result-row">
                 <span>Integrity Verified</span>
                 <span style={{ color: verified ? "#34d399" : "#f08080" }}>
-                  {verified ? "✓ Verified" : "✗ Failed"}
+                  {verified ? "Verified" : "Failed"}
                 </span>
               </div>
               <div style={{ marginTop: 8 }}>
@@ -148,7 +135,7 @@ function ExtractPage() {
                   href={API.fileUrl(result.output_file)}
                   download
                 >
-                  ↓ Download Recovered Document
+                  Download Recovered Document
                 </a>
               </div>
             </div>

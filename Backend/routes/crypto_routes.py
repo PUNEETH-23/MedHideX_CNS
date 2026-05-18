@@ -3,6 +3,7 @@ import os
 import time
 import uuid
 from datetime import datetime
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
@@ -16,6 +17,7 @@ from database.mongo import files_collection, reports_collection
 
 
 router = APIRouter()
+ENCRYPTION_NOTE = "This file contains encrypted data."
 
 
 @router.post("/encrypt")
@@ -36,6 +38,8 @@ async def encrypt_document(
             encrypted_document,
             encrypted_aes_key,
             hash_value,
+            file.filename,
+            ENCRYPTION_NOTE,
         )
         encryption_time = time.time() - start_time
 
@@ -89,7 +93,10 @@ async def decrypt_payload_api(
         )
         integrity_verified = verify_hash(decrypted_document, payload_data["hash"])
 
-        output_file = f"extracted/recovered_{uuid.uuid4()}.txt"
+        original_filename = Path(payload_data.get("original_filename", "")).name
+        original_suffix = Path(original_filename).suffix or ".bin"
+        output_file = f"extracted/recovered_{uuid.uuid4()}{original_suffix}"
+
         with open(output_file, "wb") as file:
             file.write(decrypted_document)
 
@@ -106,6 +113,8 @@ async def decrypt_payload_api(
         return {
             "message": "Decryption Successful",
             "integrity_verified": integrity_verified,
+            "original_filename": original_filename,
+            "encryption_note": payload_data.get("encryption_note", ENCRYPTION_NOTE),
             "output_file": f"/download/extracted/{os.path.basename(output_file)}",
             "decryption_time": decryption_time,
         }

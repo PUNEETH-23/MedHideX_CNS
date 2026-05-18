@@ -9,6 +9,8 @@ router = APIRouter()
 DOWNLOAD_DIRS = {
     "stego": Path("stego"),
     "mask": Path("stego"),
+    "audio": Path("stego"),
+    "video": Path("stego"),
     "extracted": Path("extracted"),
 }
 
