@@ -1,5 +1,5 @@
 import { useState } from "react";
-import API from "../api/api";
+import API, { setCookie } from "../api/api";
 import Navbar from "../components/Navbar";
 import { MedShell, GLOBAL_CSS } from "./Medshell";
 
@@ -19,7 +19,7 @@ function LoginPage() {
       formData.append("password", password);
       const response = await API.post("/login", formData);
       if (response.data.error) { setError(response.data.error); return; }
-      localStorage.setItem("medhidex_token", response.data.token);
+      setCookie("medhidex_token", response.data.token, 3600);
       setMessage(response.data.message);
       window.location.href = "/dashboard";
     } catch (e) {

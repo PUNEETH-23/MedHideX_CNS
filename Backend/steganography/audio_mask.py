@@ -11,10 +11,12 @@ AUDIO_BITS_PER_BYTE = 2
 
 
 def prepare_audio_carrier(audio_path, content_type, output_path):
-    if content_type in {"audio/wav", "audio/wave", "audio/x-wav"}:
+    if content_type in {"audio/wav", "audio/wave", "audio/x-wav", "audio/wan"}:
         return audio_path
 
-    if content_type in {"audio/mpeg", "audio/mp3"}:
+    if content_type in {
+        "audio/mpeg", "audio/mp3"
+    }:
         if shutil.which("ffmpeg") is None:
             _build_wav_from_file_bytes(audio_path, output_path)
             return output_path
@@ -22,7 +24,7 @@ def prepare_audio_carrier(audio_path, content_type, output_path):
         _convert_mp3_to_wav(audio_path, output_path)
         return output_path
 
-    raise ValueError("Invalid audio format. Upload WAV or MP3.")
+    raise ValueError("Invalid audio format. Upload a MP3 or WAV file.")
 
 
 def embed_mask_png_in_wav(mask_png_path, audio_path, output_path):
@@ -41,21 +43,26 @@ def embed_mask_png_in_wav(mask_png_path, audio_path, output_path):
     if required_audio_bytes > len(frames):
         frames = _repeat_frames(frames, required_audio_bytes)
 
-    for index in range(0, len(binary_payload), AUDIO_BITS_PER_BYTE):
-        chunk = binary_payload[index:index + AUDIO_BITS_PER_BYTE].ljust(
-            AUDIO_BITS_PER_BYTE,
-            "0",
-        )
-        frame_index = index // AUDIO_BITS_PER_BYTE
-        frames[frame_index] = (
-            frames[frame_index] & (0xFF << AUDIO_BITS_PER_BYTE)
-        ) | int(chunk, 2)
+    # NumPy vectorized embedding
+    frames_arr = np.frombuffer(frames, dtype=np.uint8).copy()
+    pad_len = ((len(binary_payload) + 1) // 2) * 2
+    padded_payload = binary_payload.ljust(pad_len, '0')
+    
+    payload_bytes = np.frombuffer(padded_payload.encode('ascii'), dtype=np.uint8) - 48
+    payload_bits = payload_bytes.reshape(-1, 2)
+    
+    values_to_embed = (payload_bits[:, 0] * 2 + payload_bits[:, 1]).astype(np.uint8)
+    num_to_embed = len(values_to_embed)
+    
+    clear_mask = np.uint8(252) # 0xFF << 2 is 252
+    frames_arr[:num_to_embed] = (frames_arr[:num_to_embed] & clear_mask) | values_to_embed
+    frames_bytes = frames_arr.tobytes()
 
     with wave.open(output_path, "wb") as stego_audio:
         stego_audio.setparams(params)
-        stego_audio.writeframes(bytes(frames))
+        stego_audio.writeframes(frames_bytes)
 
-    duration = len(frames) / float(params.framerate * params.nchannels * params.sampwidth)
+    duration = len(frames_bytes) / float(params.framerate * params.nchannels * params.sampwidth)
 
     return {
         "embedded_bits": len(binary_payload),
@@ -130,21 +137,19 @@ def _duration_from_params(params):
 
 
 def _bytes_to_bits(data):
-    return ''.join(format(byte, "08b") for byte in data)
+    arr = np.frombuffer(data, dtype=np.uint8)
+    bits = np.unpackbits(arr)
+    bits_char = (bits + 48).astype(np.uint8)
+    return bits_char.tobytes().decode('ascii')
 
 
 def _bits_to_bytes(bits):
-    data = bytearray()
-
-    for index in range(0, len(bits), 8):
-        byte = bits[index:index + 8]
-
-        if len(byte) < 8:
-            break
-
-        data.append(int(byte, 2))
-
-    return bytes(data)
+    pad_len = ((len(bits) + 7) // 8) * 8
+    padded_bits = bits.ljust(pad_len, '0')
+    bits_arr = np.frombuffer(padded_bits.encode('ascii'), dtype=np.uint8) - 48
+    bytes_arr = np.packbits(bits_arr)
+    orig_byte_len = len(bits) // 8
+    return bytes_arr[:orig_byte_len].tobytes()
 
 
 def _int_to_bits(value, width):
@@ -164,9 +169,12 @@ def _repeat_frames(frames, required_size):
 
 
 def _extract_bits(frames, bit_count):
-    bits = ''.join(
-        format(byte & ((1 << AUDIO_BITS_PER_BYTE) - 1), f"0{AUDIO_BITS_PER_BYTE}b")
-        for byte in frames
-    )
-
-    return bits[:bit_count]
+    needed_bytes = (bit_count + 1) // 2
+    arr = np.frombuffer(frames[:needed_bytes], dtype=np.uint8)
+    lsb_values = arr & np.uint8(3)
+    bit1 = (lsb_values >> 1) & 1
+    bit2 = lsb_values & 1
+    bits = np.stack((bit1, bit2), axis=1).flatten()
+    bits_char = (bits + 48).astype(np.uint8)
+    extracted_str = bits_char.tobytes().decode('ascii')
+    return extracted_str[:bit_count]

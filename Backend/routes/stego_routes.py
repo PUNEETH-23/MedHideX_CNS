@@ -1,7 +1,11 @@
 import os
 import time
 import uuid
+import json
+import random
 from datetime import datetime
+import cv2
+import numpy as np
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from Auth.auth_handler import get_current_user
@@ -13,17 +17,31 @@ from steganography.audio_mask import (
     embed_mask_png_in_wav,
     extract_mask_from_wav,
     prepare_audio_carrier,
+    get_wav_duration,
 )
-from steganography.bit_utils import LENGTH_PREFIX_BITS, huffman_compress_text
+from steganography.bit_utils import (
+    LENGTH_PREFIX_BITS,
+    huffman_compress_text,
+    add_length_prefix,
+    text_to_binary,
+    binary_to_text,
+    read_length_prefixed_binary,
+    huffman_decompress_text,
+)
 from steganography.capacity import estimate_capacity
-from steganography.mask_generator import save_mask_png
+from steganography.mask_generator import save_mask_png, generate_binary_mask
 from steganography.video_util import (
-    create_stego_video,
-    embed_media_into_video,
     extract_first_frame,
-    extract_media_from_video,
+    extract_audio_from_video,
+    create_stego_video_from_frames,
+    repeat_wav_to_duration,
+    mux_audio_into_video,
 )
-
+from steganography.chunk_embed import (
+    embed_bits_in_frame,
+    extract_bits_from_frame,
+    divide_into_chunks,
+)
 
 router = APIRouter()
 
@@ -33,6 +51,7 @@ async def embed_payload_api(
     image: UploadFile = File(...),
     audio: UploadFile = File(...),
     payload: str = Form(...),
+    lsb_bits: int = Form(3),
     current_user: str = Depends(get_current_user),
 ):
     try:
@@ -43,7 +62,7 @@ async def embed_payload_api(
 
         audio_type = _audio_content_type(audio)
         if audio_type not in ALLOWED_AUDIO_TYPES:
-            return {"error": "Invalid audio format. Upload a WAV or MP3 file."}
+            return {"error": "Invalid audio format. Upload a MP3 or WAV file."}
 
         image_path = await save_upload(image, "uploads")
         audio_path = await save_upload(audio, "uploads")
@@ -52,12 +71,64 @@ async def embed_payload_api(
             audio_type,
             f"uploads/carrier_{uuid.uuid4()}.wav",
         )
-        capacity = estimate_capacity(image_path)
 
-        payload_bits = LENGTH_PREFIX_BITS + len(huffman_compress_text(payload))
+        mask = generate_binary_mask(image_path)
+        num_pixels_in_mask = np.sum(mask == 1)
+        coords = np.where(mask == 1)
+        chunk_capacity = num_pixels_in_mask * 3 * lsb_bits
 
-        if payload_bits > capacity["bits"]:
-            return {"error": "Payload exceeds image capacity"}
+        if chunk_capacity == 0:
+            return {"error": "Cover image capacity is too small or zero."}
+
+        compressed_payload = huffman_compress_text(payload)
+        binary_payload = add_length_prefix(compressed_payload)
+
+        num_chunks_needed = (len(binary_payload) // chunk_capacity) + 1
+        audio_duration = get_wav_duration(carrier_audio_path)
+        audio_frames = int(round(audio_duration * 30))
+        total_frames = max(num_chunks_needed + 1, audio_frames, 2)
+        N = total_frames - 1
+
+        chunks = divide_into_chunks(binary_payload, N)
+
+        # Generate a random sequence for chunk placement
+        mapping = list(range(1, N + 1))
+        random.shuffle(mapping)
+
+        # Construct JSON metadata
+        metadata = {
+            "lsb_bits": lsb_bits,
+            "total_bits": len(binary_payload),
+            "num_chunks": N,
+            "mapping": mapping
+        }
+
+        metadata_str = json.dumps(metadata)
+        metadata_bits = text_to_binary(metadata_str)
+        metadata_payload = add_length_prefix(metadata_bits)
+
+        # Verify Frame 0 capacity (metadata uses lsb_bits = 3)
+        metadata_capacity = num_pixels_in_mask * 3 * 3
+        if len(metadata_payload) > metadata_capacity:
+            return {"error": "Metadata exceeds frame capacity"}
+
+        # Read cover image
+        cover_image = cv2.imread(image_path)
+        if cover_image is None:
+            return {"error": "Failed to read cover image"}
+
+        # Initialize the list of unique frames
+        unique_frames = [None] * (N + 1)
+
+        # Frame 0 is metadata
+        metadata_frame, _ = embed_bits_in_frame(cover_image, mask, metadata_payload, 3, coords)
+        unique_frames[0] = metadata_frame
+
+        # Frames 1 to N are payload chunks
+        for i, chunk in enumerate(chunks):
+            frame_idx = mapping[i]
+            frame_img, _ = embed_bits_in_frame(cover_image, mask, chunk, lsb_bits, coords)
+            unique_frames[frame_idx] = frame_img
 
         output_path = f"stego/stego_{uuid.uuid4()}.png"
         mask_path = f"stego/mask_{uuid.uuid4()}.png"
@@ -65,26 +136,30 @@ async def embed_payload_api(
         frame_video_path = f"stego/stego_frames_{uuid.uuid4()}.mp4"
         stego_video_path = f"stego/stego_video_{uuid.uuid4()}.mp4"
 
-        result = adaptive_embed(
-            image_path=image_path,
-            payload=payload,
-            output_path=output_path,
-        )
+        # Save Frame 0 as the downloadable stego image for frontend compatibility
+        cv2.imwrite(output_path, unique_frames[0])
 
-        save_mask_png(result["mask"], mask_path)
+        # Write stego frames to video (automatically duplicates frames to convert 30 FPS content to 60 FPS)
+        video_result = create_stego_video_from_frames(unique_frames, frame_video_path, fps=60)
+        video_duration = video_result["duration"]
+
+        # Loop/repeat audio if video duration is longer
+        if video_duration > audio_duration:
+            repeated_audio_path = f"uploads/repeated_{uuid.uuid4()}.wav"
+            repeat_wav_to_duration(carrier_audio_path, video_duration, repeated_audio_path)
+            carrier_audio_path = repeated_audio_path
+
+        # Embed mask PNG into the (repeated) audio
+        save_mask_png(mask, mask_path)
         audio_result = embed_mask_png_in_wav(
             mask_png_path=mask_path,
             audio_path=carrier_audio_path,
             output_path=stego_audio_path,
         )
-        video_result = create_stego_video(
-            image_path=output_path,
-            output_path=frame_video_path,
-            duration=audio_result["duration"],
-        )
-        embed_media_into_video(
+
+        # Mux/append audio and video
+        mux_audio_into_video(
             video_path=frame_video_path,
-            image_path=output_path,
             audio_path=stego_audio_path,
             output_path=stego_video_path,
         )
@@ -96,21 +171,25 @@ async def embed_payload_api(
             "uploaded_image": image.filename,
             "uploaded_audio": audio.filename,
             "stego_image": output_path,
+            "mask_file": mask_path,
             "stego_audio": stego_audio_path,
             "stego_video": stego_video_path,
-            "embedded_bits": result["embedded_bits"],
+            "embedded_bits": len(binary_payload),
             "audio_mask_bits": audio_result["embedded_bits"],
-            "video_duration": video_result["duration"],
+            "video_duration": video_duration,
             "embedding_time": embedding_time,
             "created_at": datetime.utcnow(),
         })
 
         return {
             "message": "Embedding Successful",
+            "mask_file": f"/download/mask/{os.path.basename(mask_path)}",
+            "stego_image": f"/download/stego/{os.path.basename(output_path)}",
+            "stego_audio": f"/download/audio/{os.path.basename(stego_audio_path)}",
             "stego_video": f"/download/video/{os.path.basename(stego_video_path)}",
-            "embedded_bits": result["embedded_bits"],
+            "embedded_bits": len(binary_payload),
             "audio_mask_bits": audio_result["embedded_bits"],
-            "video_duration": video_result["duration"],
+            "video_duration": video_duration,
             "video_frames": video_result["frames"],
             "embedding_time": embedding_time,
         }
@@ -130,23 +209,70 @@ async def extract_payload_api(
             return {"error": "Invalid stego video format"}
 
         media_path = await save_upload(image, "uploads")
-        image_path = f"uploads/video_frame_{uuid.uuid4()}.png"
         audio_path = f"uploads/video_audio_{uuid.uuid4()}.wav"
 
-        has_embedded_media = extract_media_from_video(media_path, image_path, audio_path)
+        # Extract the audio from the video (using the fallback or ffmpeg)
+        extract_audio_from_video(media_path, audio_path)
 
-        if not has_embedded_media:
-            extract_first_frame(media_path, image_path)
-            return {"error": "This video does not contain embedded recovery audio"}
-
+        # Extract the binary mask from the audio
         mask = extract_mask_from_wav(audio_path)
-        extracted_payload = adaptive_extract(image_path=image_path, mask=mask)
+        coords = np.where(mask == 1)
+
+        # Read all video frames using cv2.VideoCapture
+        video = cv2.VideoCapture(media_path)
+        frames = []
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                break
+            frames.append(frame)
+        video.release()
+
+        if not frames:
+            return {"error": "Unable to read frames from stego video"}
+
+        # Get unique frames by taking every 2nd frame (since they were duplicated for 60 FPS)
+        unique_frames = frames[::2]
+
+        # Extract metadata from Frame 0 using lsb_bits = 3
+        # Extract length prefix first
+        length_bits = extract_bits_from_frame(unique_frames[0], mask, 32, 3, coords)
+        if not length_bits or len(length_bits) < 32:
+            return {"error": "Failed to extract metadata length from Frame 0"}
+        metadata_length = int(length_bits, 2)
+
+        # Extract full metadata payload (prefix + body)
+        full_metadata_bits = extract_bits_from_frame(unique_frames[0], mask, 32 + metadata_length, 3, coords)
+        metadata_bits = full_metadata_bits[32:]
+        metadata_str = binary_to_text(metadata_bits)
+        metadata = json.loads(metadata_str)
+
+        lsb_bits = metadata["lsb_bits"]
+        total_bits = metadata["total_bits"]
+        num_chunks = metadata["num_chunks"]
+        mapping = metadata["mapping"]
+
+        # Extract each chunk from Frame mapping[i]
+        chunks = [None] * num_chunks
+        for i in range(num_chunks):
+            frame_idx = mapping[i]
+            if frame_idx >= len(unique_frames):
+                return {"error": f"Frame index {frame_idx} in mapping exceeds unique frames count {len(unique_frames)}"}
+            chunk_size = (total_bits // num_chunks) + (1 if i < (total_bits % num_chunks) else 0)
+            chunk_bits = extract_bits_from_frame(unique_frames[frame_idx], mask, chunk_size, lsb_bits, coords)
+            chunks[i] = chunk_bits
+
+        binary_payload = "".join(chunks)
+
+        # Decompress payload
+        compressed_payload = read_length_prefixed_binary(binary_payload)
+        extracted_payload = huffman_decompress_text(compressed_payload)
+
         extraction_time = time.time() - start_time
 
         reports_collection.insert_one({
             "type": "extraction",
             "username": current_user,
-            "stego_image": image.filename,
             "stego_video": image.filename,
             "extraction_time": extraction_time,
             "created_at": datetime.utcnow(),
@@ -169,6 +295,9 @@ def _audio_content_type(upload):
 
     if extension == ".mp3":
         return "audio/mpeg"
+
+    if extension == ".wan":
+        return "audio/wan"
 
     return upload.content_type
 

@@ -128,7 +128,7 @@ function EncryptPage() {
           <div style={badge}>Encrypt & Embed</div>
           <h1 className="med-h1">Secure <span>Payload</span> Embedding</h1>
           <p className="med-subhead">
-            Encrypts your document, hides it inside a cover image, uses MP3 or recorded audio as the carrier, and returns one MP4 stego video.
+            Encrypts your document, hides it inside a cover image, uses MP3 or recorded audio as the carrier, and returns every generated stego artifact.
           </p>
         </div>
 
@@ -203,15 +203,31 @@ function EncryptPage() {
                 <span>{result.embedding_time}</span>
               </div>
               <div style={{ marginTop: 8 }}>
-                <a className="med-download" href={API.fileUrl(result.stego_video)} download>
-                  Download Stego Video
-                </a>
+                <DownloadLink href={result.mask_file} label="Download Mask" />
+                <DownloadLink href={result.stego_image} label="Download Stego Image" />
+                <DownloadLink href={result.stego_audio} label="Download Stego Audio" />
+                <DownloadLink href={result.stego_video} label="Download Stego Video" />
               </div>
             </div>
           )}
         </div>
       </main>
     </MedShell>
+  );
+}
+
+function DownloadLink({ href, label }) {
+  if (!href) return null;
+
+  return (
+    <a
+      className="med-download"
+      href={API.fileUrl(href)}
+      download
+      style={{ display: "inline-flex", marginRight: 10, marginTop: 10 }}
+    >
+      {label}
+    </a>
   );
 }
 

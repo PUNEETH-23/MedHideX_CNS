@@ -8,34 +8,69 @@ import cv2
 EMBEDDED_MEDIA_MAGIC = b"MHXMEDIA"
 
 
-def create_stego_video(image_path, output_path, duration, fps=24):
-    image = cv2.imread(image_path)
+import os
+import wave
 
-    if image is None:
-        raise ValueError("Invalid stego image")
-
-    height, width, _ = image.shape
-    frame_count = max(1, int(round(duration * fps)))
-    if output_path.lower().endswith(".mp4"):
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+def create_stego_video_from_frames(frames, output_path, fps=60):
+    if not frames:
+        raise ValueError("No frames provided to create video")
+        
+    first_frame = frames[0]
+    height, width, _ = first_frame.shape
+    
+    use_mp4_rename = output_path.lower().endswith(".mp4")
+    if use_mp4_rename:
+        # Write to a temp AVI file using lossless FFV1
+        temp_path = output_path.replace(".mp4", "_temp.avi")
     else:
-        fourcc = cv2.VideoWriter_fourcc(*"FFV1")
-
-    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
-
+        temp_path = output_path
+        
+    fourcc = cv2.VideoWriter_fourcc(*"FFV1")
+    writer = cv2.VideoWriter(temp_path, fourcc, fps, (width, height))
+    
     if not writer.isOpened():
-        raise ValueError("Unable to create stego video")
-
-    for _ in range(frame_count):
-        writer.write(image)
-
+        raise ValueError("Unable to create stego video writer")
+        
+    for frame in frames:
+        # Duplicate each unique frame to convert 30 FPS content to 60 FPS video
+        writer.write(frame)
+        writer.write(frame)
+        
     writer.release()
-
+    
+    if use_mp4_rename:
+        if os.path.exists(output_path):
+            os.remove(output_path)
+        os.rename(temp_path, output_path)
+        
+    written_frames = len(frames) * 2
     return {
-        "duration": frame_count / float(fps),
-        "frames": frame_count,
+        "duration": written_frames / float(fps),
+        "frames": written_frames,
         "fps": fps,
     }
+
+def repeat_wav_to_duration(audio_path, target_duration, output_path):
+    with wave.open(audio_path, "rb") as wav_in:
+        params = wav_in.getparams()
+        frames = wav_in.readframes(params.nframes)
+        
+    target_nframes = int(round(target_duration * params.framerate))
+    
+    if target_nframes > params.nframes:
+        repeat_count = (target_nframes + params.nframes - 1) // params.nframes
+        repeated_frames = frames * repeat_count
+        # Trim to exact target frames
+        bytes_per_frame = params.sampwidth * params.nchannels
+        repeated_frames = repeated_frames[:target_nframes * bytes_per_frame]
+    else:
+        repeated_frames = frames
+        target_nframes = params.nframes
+        
+    with wave.open(output_path, "wb") as wav_out:
+        wav_out.setparams(params)
+        wav_out.setnframes(target_nframes)
+        wav_out.writeframes(repeated_frames)
 
 
 def extract_first_frame(video_path, output_path):

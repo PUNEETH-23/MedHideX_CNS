@@ -7,8 +7,10 @@ import LoginPage from "./pages/LoginPage";
 import MetricsPage from "./pages/MetricsPage";
 import RegisterPage from "./pages/RegisterPage";
 
+import { getCookie } from "./api/api";
+
 function ProtectedPage({ children }) {
-  const token = localStorage.getItem("medhidex_token");
+  const token = getCookie("medhidex_token");
 
   if (!token) {
     window.location.href = "/login";

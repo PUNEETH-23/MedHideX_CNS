@@ -63,7 +63,7 @@ async def encrypt_document(
             "encryption_time": encryption_time,
             "created_at": datetime.utcnow(),
         })
-
+        print("encrypt")
         return {
             "message": "Encryption Successful",
             "payload": payload,

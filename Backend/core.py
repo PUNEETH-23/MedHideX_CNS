@@ -23,17 +23,16 @@ ALLOWED_IMAGE_TYPES = (
 )
 
 ALLOWED_AUDIO_TYPES = (
+    "audio/mpeg",
+    "audio/mp3",
     "audio/wav",
     "audio/wave",
     "audio/x-wav",
-    "audio/mpeg",
-    "audio/mp3",
+    "audio/wan",
 )
 
 ALLOWED_VIDEO_TYPES = (
     "video/mp4",
-    "video/avi",
-    "video/x-msvideo",
 )
 
 
