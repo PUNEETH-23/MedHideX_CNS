@@ -1,5 +1,4 @@
 import { useState } from "react";
-import API from "../api/api";
 import Navbar from "../components/Navbar";
 import { MedShell, GLOBAL_CSS } from "./Medshell";
 
@@ -17,16 +16,28 @@ function RegisterPage() {
     if (password !== reEnterPassword) { setError("Passwords do not match"); return; }
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("username", username);
-      formData.append("password", password);
-      formData.append("re_enter_password", reEnterPassword);
-      const response = await API.post("/register", formData);
-      if (response.data.error) { setError(response.data.error); return; }
-      setMessage(response.data.message);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}/register_profile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          password_confirm: reEnterPassword,
+        }),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        setError(responseData.error || responseData.detail || "Registration failed.");
+        return;
+      }
+
+      setMessage("Registration Successful! You can now log in.");
       setUsername(""); setPassword(""); setReEnterPassword("");
     } catch (e) {
-      setError("Unable to register. Check if the backend is running.");
+      setError("Unable to register. Check your internet connection.");
     } finally {
       setLoading(false);
     }

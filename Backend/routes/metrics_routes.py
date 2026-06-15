@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 
 from Auth.auth_handler import get_current_user
 from core import ALLOWED_AUDIO_TYPES, save_upload
-from database.mongo import reports_collection
+from database.mongo import reports_collection, users_collection
 from steganography.audio_mask import prepare_audio_carrier
 from steganography.metrics import calculate_audio_metrics, calculate_metrics
 
@@ -25,6 +25,10 @@ async def metrics_api(
 ):
     try:
         metric_values = {}
+        # Check user role to record properly
+        user_doc = users_collection.find_one({"username": current_user})
+        role = user_doc.get("role") if user_doc else "doctor"
+
         report = {
             "type": "metrics",
             "username": current_user,

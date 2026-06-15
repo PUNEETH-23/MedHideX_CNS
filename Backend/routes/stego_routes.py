@@ -164,6 +164,13 @@ async def embed_payload_api(
             output_path=stego_video_path,
         )
 
+        # Extract patient_id from payload if possible
+        try:
+            payload_data = json.loads(payload)
+            patient_id = payload_data.get("patient_id")
+        except Exception:
+            patient_id = None
+
         embedding_time = time.time() - start_time
         reports_collection.insert_one({
             "type": "embedding",

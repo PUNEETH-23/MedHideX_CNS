@@ -1,7 +1,7 @@
 import { useState } from "react";
-import API, { setCookie } from "../api/api";
 import Navbar from "../components/Navbar";
 import { MedShell, GLOBAL_CSS } from "./Medshell";
+import { setCookie } from "../api/api";
 
 function LoginPage() {
   const [username, setUsername] = useState("");
@@ -14,16 +14,33 @@ function LoginPage() {
     event.preventDefault();
     setLoading(true); setMessage(""); setError("");
     try {
-      const formData = new FormData();
-      formData.append("username", username);
-      formData.append("password", password);
-      const response = await API.post("/login", formData);
-      if (response.data.error) { setError(response.data.error); return; }
-      setCookie("medhidex_token", response.data.token, 3600);
-      setMessage(response.data.message);
-      window.location.href = "/dashboard";
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000"}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.detail || result.error || "Invalid username or password.");
+        return;
+      }
+
+      if (result.access_token) {
+        setCookie("medhidex_token", result.access_token, 3600);
+        setMessage("Login Successful");
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      setError("Login failed. Please try again.");
     } catch (e) {
-      setError("Unable to login. Check if the backend is running.");
+      setError("Unable to login. Check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -63,7 +80,7 @@ function LoginPage() {
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="Enter username"
+                placeholder="Enter your username"
                 required
               />
 

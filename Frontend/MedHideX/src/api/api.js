@@ -1,6 +1,5 @@
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
-
 export function getCookie(name) {
   const nameEQ = name + "=";
   const ca = document.cookie.split(';');
@@ -26,13 +25,28 @@ export function eraseCookie(name) {
   document.cookie = name + "=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax";
 }
 
+function getAuthToken() {
+  return getCookie("medhidex_token");
+}
+
 const API = {
-  async post(path, body) {
-    const token = getCookie("medhidex_token");
+  async post(path, body, json = true) {
+    const token = getAuthToken();
     const headers = {};
 
     if (token) {
       headers.Authorization = `Bearer ${token}`;
+    }
+
+    // If caller passed a FormData instance, send multipart/form-data
+    // Let the browser set the Content-Type (boundary) automatically.
+    if (typeof FormData !== "undefined" && body instanceof FormData) {
+      json = false;
+    }
+
+    if (json) {
+      headers["Content-Type"] = "application/json";
+      body = JSON.stringify(body);
     }
 
     const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -48,7 +62,7 @@ const API = {
   },
 
   async get(path) {
-    const token = getCookie("medhidex_token");
+    const token = getAuthToken();
     const headers = {};
 
     if (token) {

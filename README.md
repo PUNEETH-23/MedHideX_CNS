@@ -46,7 +46,8 @@ Project/
 |   |   |-- rsa_util.py
 |   |   `-- sha_util.py
 |   |-- database/
-|   |   `-- mongo.py
+|   |   |-- mongo.py
+|   |   `-- schemas.py
 |   |-- routes/
 |   |   |-- auth_routes.py
 |   |   |-- crypto_routes.py
@@ -137,9 +138,9 @@ medhidex
 
 Collections:
 
-- `users`: username and hashed password records
-- `files`: encrypted file metadata, encrypted AES key, hash, payload, file size, owner username, and timestamp
-- `reports`: user-specific workflow history for encryption, embedding, extraction, decryption, and metrics
+- `users`: username, `password` (bcrypt password hash), and legacy `password_hash` (HMAC-SHA256) fallback
+- `files`: encrypted file metadata (SHA-256 hash, owner, patient/doctor IDs, original filename) and local path (`encrypted_file_path`) pointing to disk storage (bypassing MongoDB's 16MB BSON limit for files of any size)
+- `reports`: user-specific workflow history for encryption, embedding, extraction, decryption, and metrics (also indexable for legacy reports lacking a `username` field)
 
 The history API filters records by the authenticated user, so each user only sees their own activity.
 
@@ -222,6 +223,8 @@ http://127.0.0.1:5173
 ```
 
 ## Steganography Flow
+
+![MedHideX+ Flow Diagram](ChatGPT%20Image%20May%2018%2C%202026%2C%2010_42_06%20PM.png)
 
 ```mermaid
 flowchart TD
@@ -331,6 +334,10 @@ Frontend/MedHideX/dist
 - Do not commit generated stego images, stego audio, stego videos, masks, or recovered documents.
 - Keep `.env` files out of Git.
 - Use a stronger secret key through environment variables before production deployment.
+
+## Key Storage
+
+- **Public and private keys**: When a user registers, the app generates an RSA-2048 key pair. The public key is stored in the `users` collection as `public_key`. For convenience in the current local setup, the private key is also stored in the `users` collection as `private_key` (plaintext) and an `encrypted_private_key` is kept as well. If you plan to deploy to production, remove plaintext private key storage and require a secure unlock workflow.
 
 ## Performance Optimization & NumPy Vectorization
 

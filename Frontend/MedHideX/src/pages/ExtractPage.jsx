@@ -38,6 +38,7 @@ function StepLabel({ n, text }) {
 
 function ExtractPage() {
   const [videoFile, setVideoFile] = useState(null);
+  
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
@@ -70,6 +71,7 @@ function ExtractPage() {
   };
 
   const verified = result?.integrity_verified;
+  const signatureVerified = result?.signature_verified;
 
   return (
     <MedShell>
@@ -94,6 +96,8 @@ function ExtractPage() {
             fileName={videoFile?.name}
           />
 
+          {/* Unlock step removed — decrypt uses stored private key on server */}
+
           <div className="med-divider" />
 
           <button
@@ -101,7 +105,7 @@ function ExtractPage() {
             onClick={handleExtract}
             disabled={loading || !videoFile}
             style={{
-              opacity: !videoFile ? 0.5 : 1,
+              opacity: (!videoFile) ? 0.5 : 1,
               background: "linear-gradient(135deg, #065f46, #059669)",
             }}
           >
@@ -126,6 +130,12 @@ function ExtractPage() {
                 <span>Integrity Verified</span>
                 <span style={{ color: verified ? "#34d399" : "#f08080" }}>
                   {verified ? "Verified" : "Failed"}
+                </span>
+              </div>
+              <div className="med-result-row">
+                <span>Doctor Digital Signature</span>
+                <span style={{ color: signatureVerified ? "#34d399" : "#f08080" }}>
+                  {signatureVerified ? "Signature Authentic" : "Invalid Signature"}
                 </span>
               </div>
               <div style={{ marginTop: 8 }}>
