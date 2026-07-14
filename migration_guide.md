@@ -137,7 +137,7 @@ This document lists all the files modified, created, and deleted during the refa
    ```env
    VITE_SUPABASE_URL=https://your-supabase-project.supabase.co
    VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
-   VITE_API_BASE_URL=http://127.0.0.1:8000
+   VITE_API_BASE_URL=https://localhost:8000
    ```
 2. Change into `Frontend/MedHideX` and start the React dev server:
    ```bash

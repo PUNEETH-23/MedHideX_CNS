@@ -6,11 +6,13 @@ import random
 from datetime import datetime
 import cv2
 import numpy as np
+import pydicom
+import hashlib
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 
 from Auth.auth_handler import get_current_user
 from core import ALLOWED_AUDIO_TYPES, ALLOWED_IMAGE_TYPES, ALLOWED_VIDEO_TYPES, save_upload
-from database.mongo import reports_collection
+from database.mongo import reports_collection, dicom_videos_collection
 from steganography.adaptive_embed import adaptive_embed
 from steganography.adaptive_extract import adaptive_extract
 from steganography.audio_mask import (
@@ -57,8 +59,10 @@ async def embed_payload_api(
     try:
         start_time = time.time()
 
-        if image.content_type not in ALLOWED_IMAGE_TYPES:
-            return {"error": "Invalid image format"}
+        filename = image.filename or ""
+        is_dicom = filename.lower().endswith(".dcm") or image.content_type == "application/dicom"
+        if not is_dicom:
+            return {"error": "Invalid file format. Please upload a DICOM (.dcm) image."}
 
         audio_type = _audio_content_type(audio)
         if audio_type not in ALLOWED_AUDIO_TYPES:
@@ -66,13 +70,51 @@ async def embed_payload_api(
 
         image_path = await save_upload(image, "uploads")
         audio_path = await save_upload(audio, "uploads")
+
+        # Parse DICOM SOP Instance UID and convert to PNG
+        try:
+            ds = pydicom.dcmread(image_path)
+            dicom_uid = ds.SOPInstanceUID
+        except Exception as e:
+            return {"error": f"Failed to read DICOM file: {str(e)}"}
+
+        dicom_uid_hash = hashlib.sha256(dicom_uid.encode("utf-8")).hexdigest()
+
+        # Convert DICOM pixel array to 8-bit RGB PNG
+        try:
+            pixels = ds.pixel_array
+            min_val = pixels.min()
+            max_val = pixels.max()
+            if max_val > min_val:
+                normalized = ((pixels - min_val) / (max_val - min_val) * 255.0).astype(np.uint8)
+            else:
+                normalized = np.zeros_like(pixels, dtype=np.uint8)
+
+            if normalized.ndim == 2:
+                img_rgb = cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)
+            elif normalized.ndim == 3:
+                if normalized.shape[0] < 10:
+                    normalized = np.transpose(normalized, (1, 2, 0))
+                if normalized.shape[2] != 3:
+                    normalized = normalized[0]
+                    img_rgb = cv2.cvtColor(normalized, cv2.COLOR_GRAY2RGB)
+                else:
+                    img_rgb = normalized
+            else:
+                raise ValueError(f"Unsupported pixel dimensions: {normalized.ndim}")
+
+            cover_image_path = f"uploads/converted_{uuid.uuid4()}.png"
+            cv2.imwrite(cover_image_path, img_rgb)
+        except Exception as e:
+            return {"error": f"Failed to convert DICOM image to PNG: {str(e)}"}
+
         carrier_audio_path = prepare_audio_carrier(
             audio_path,
             audio_type,
             f"uploads/carrier_{uuid.uuid4()}.wav",
         )
 
-        mask = generate_binary_mask(image_path)
+        mask = generate_binary_mask(cover_image_path)
         num_pixels_in_mask = np.sum(mask == 1)
         coords = np.where(mask == 1)
         chunk_capacity = num_pixels_in_mask * 3 * lsb_bits
@@ -113,7 +155,7 @@ async def embed_payload_api(
             return {"error": "Metadata exceeds frame capacity"}
 
         # Read cover image
-        cover_image = cv2.imread(image_path)
+        cover_image = cv2.imread(cover_image_path)
         if cover_image is None:
             return {"error": "Failed to read cover image"}
 
@@ -164,6 +206,22 @@ async def embed_payload_api(
             output_path=stego_video_path,
         )
 
+        # Compute SHA-256 hash of the generated stego video
+        video_hash = hashlib.sha256()
+        with open(stego_video_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                video_hash.update(chunk)
+        video_sha256 = video_hash.hexdigest()
+
+        # Store DICOM UID association and metadata
+        dicom_videos_collection.insert_one({
+            "video_hash": video_sha256,
+            "dicom_uid_hash": dicom_uid_hash,
+            "dicom_filename": image.filename,
+            "created_at": datetime.utcnow(),
+            "algorithm_version": "1.0",
+        })
+
         # Extract patient_id from payload if possible
         try:
             payload_data = json.loads(payload)
@@ -186,6 +244,8 @@ async def embed_payload_api(
             "video_duration": video_duration,
             "embedding_time": embedding_time,
             "created_at": datetime.utcnow(),
+            "dicom_uid_hash": dicom_uid_hash,
+            "video_hash": video_sha256,
         })
 
         return {
@@ -199,6 +259,8 @@ async def embed_payload_api(
             "video_duration": video_duration,
             "video_frames": video_result["frames"],
             "embedding_time": embedding_time,
+            "dicom_uid_hash": dicom_uid_hash,
+            "video_hash": video_sha256,
         }
     except Exception as error:
         return {"error": str(error)}
@@ -207,6 +269,7 @@ async def embed_payload_api(
 @router.post("/extract")
 async def extract_payload_api(
     image: UploadFile = File(...),
+    dicom: UploadFile = File(...),
     current_user: str = Depends(get_current_user),
 ):
     try:
@@ -216,6 +279,39 @@ async def extract_payload_api(
             return {"error": "Invalid stego video format"}
 
         media_path = await save_upload(image, "uploads")
+
+        # Compute SHA-256 hash of the uploaded stego video
+        video_hash = hashlib.sha256()
+        with open(media_path, "rb") as f:
+            for chunk in iter(lambda: f.read(65536), b""):
+                video_hash.update(chunk)
+        video_sha256 = video_hash.hexdigest()
+
+        # Retrieve DICOM UID hash from database
+        record = dicom_videos_collection.find_one({"video_hash": video_sha256})
+        if not record:
+            return {"error": "No matching DICOM association found for this video hash in the database."}
+
+        db_dicom_uid_hash = record["dicom_uid_hash"]
+
+        # Parse uploaded DICOM and verify UID hash
+        dicom_filename = dicom.filename or ""
+        is_dicom = dicom_filename.lower().endswith(".dcm") or dicom.content_type == "application/dicom"
+        if not is_dicom:
+            return {"error": "Invalid DICOM file format. Please upload a valid DICOM (.dcm) file."}
+
+        dicom_path = await save_upload(dicom, "uploads")
+        try:
+            ds = pydicom.dcmread(dicom_path)
+            uploaded_dicom_uid = ds.SOPInstanceUID
+        except Exception as e:
+            return {"error": f"Failed to parse uploaded DICOM file: {str(e)}"}
+
+        uploaded_dicom_uid_hash = hashlib.sha256(uploaded_dicom_uid.encode("utf-8")).hexdigest()
+
+        if uploaded_dicom_uid_hash != db_dicom_uid_hash:
+            return {"error": "Verification failed: Provided DICOM image does not match the original stego video."}
+
         audio_path = f"uploads/video_audio_{uuid.uuid4()}.wav"
 
         # Extract the audio from the video (using the fallback or ffmpeg)
@@ -281,6 +377,9 @@ async def extract_payload_api(
             "type": "extraction",
             "username": current_user,
             "stego_video": image.filename,
+            "dicom_filename": dicom.filename,
+            "dicom_uid_hash": uploaded_dicom_uid_hash,
+            "video_hash": video_sha256,
             "extraction_time": extraction_time,
             "created_at": datetime.utcnow(),
         })
@@ -289,6 +388,8 @@ async def extract_payload_api(
             "message": "Extraction Successful",
             "payload": extracted_payload,
             "extraction_time": extraction_time,
+            "dicom_uid_hash": db_dicom_uid_hash,
+            "video_hash": video_sha256,
         }
     except Exception as error:
         return {"error": str(error)}

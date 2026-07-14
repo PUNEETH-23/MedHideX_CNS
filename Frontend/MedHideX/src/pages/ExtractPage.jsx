@@ -38,6 +38,7 @@ function StepLabel({ n, text }) {
 
 function ExtractPage() {
   const [videoFile, setVideoFile] = useState(null);
+  const [dicomFile, setDicomFile] = useState(null);
   
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
@@ -49,6 +50,7 @@ function ExtractPage() {
 
       const formData = new FormData();
       formData.append("image", videoFile);
+      formData.append("dicom", dicomFile);
       const extractResponse = await API.post("/extract", formData);
       const payload = extractResponse.data.payload;
 
@@ -96,6 +98,14 @@ function ExtractPage() {
             fileName={videoFile?.name}
           />
 
+          <StepLabel n={2} text="Upload Matching DICOM Image" />
+          <UploadSlot
+            label="Matching DICOM Image (.dcm)"
+            accept=".dcm"
+            onChange={e => setDicomFile(e.target.files[0])}
+            fileName={dicomFile?.name}
+          />
+
           {/* Unlock step removed — decrypt uses stored private key on server */}
 
           <div className="med-divider" />
@@ -103,9 +113,9 @@ function ExtractPage() {
           <button
             className="med-btn"
             onClick={handleExtract}
-            disabled={loading || !videoFile}
+            disabled={loading || !videoFile || !dicomFile}
             style={{
-              opacity: (!videoFile) ? 0.5 : 1,
+              opacity: (!videoFile || !dicomFile) ? 0.5 : 1,
               background: "linear-gradient(135deg, #065f46, #059669)",
             }}
           >

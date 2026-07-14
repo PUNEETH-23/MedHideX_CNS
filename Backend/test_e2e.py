@@ -16,13 +16,28 @@ mock_db = MagicMock()
 mock_reports = MagicMock()
 mock_files = MagicMock()
 mock_users = MagicMock()
+mock_dicom_videos = MagicMock()
 
 mock_client.__getitem__.return_value = mock_db
 mock_db.__getitem__.side_effect = lambda name: {
     "reports": mock_reports,
     "files": mock_files,
-    "users": mock_users
+    "users": mock_users,
+    "dicom_videos": mock_dicom_videos
 }[name]
+
+stored_dicoms = {}
+
+def mock_dicom_insert(doc):
+    stored_dicoms[doc["video_hash"]] = doc
+    return MagicMock()
+
+def mock_dicom_find_one(query):
+    v_hash = query.get("video_hash")
+    return stored_dicoms.get(v_hash)
+
+mock_dicom_videos.insert_one.side_effect = mock_dicom_insert
+mock_dicom_videos.find_one.side_effect = mock_dicom_find_one
 
 # Setup mock find_one logic for user keys
 from crypto.rsa_util import generate_rsa_keys
@@ -72,9 +87,49 @@ patcher_files.start()
 patcher_users = patch("database.mongo.users_collection", mock_users)
 patcher_users.start()
 
+patcher_dicom = patch("database.mongo.dicom_videos_collection", mock_dicom_videos)
+patcher_dicom.start()
+
 # Now import the API route functions
 from routes.crypto_routes import encrypt_document, decrypt_payload_api
 from routes.stego_routes import embed_payload_api, extract_payload_api
+
+def create_dummy_dicom(filename="dummy.dcm", uid="1.2.826.0.1.3680043.8.498.1"):
+    import pydicom
+    from pydicom.dataset import Dataset, FileDataset
+    
+    file_meta = Dataset()
+    file_meta.MediaStorageSOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+    file_meta.MediaStorageSOPInstanceUID = uid
+    file_meta.ImplementationClassUID = '1.2.826.0.1.3680043.8.498.1'
+    
+    ds = FileDataset(filename, {}, file_meta=file_meta, preamble=b"\x00"*128)
+    ds.SOPClassUID = '1.2.840.10008.5.1.4.1.1.2'
+    ds.SOPInstanceUID = uid
+    ds.StudyInstanceUID = '1.2.826.0.1.3680043.8.498.2'
+    ds.SeriesInstanceUID = '1.2.826.0.1.3680043.8.498.3'
+    ds.PatientName = "Test^Patient"
+    ds.PatientID = "test_patient"
+    
+    # 256x256 monochrome pixel array
+    ds.Rows = 256
+    ds.Columns = 256
+    ds.SamplesPerPixel = 1
+    ds.PhotometricInterpretation = "MONOCHROME2"
+    ds.PixelRepresentation = 0
+    ds.BitsAllocated = 8
+    ds.BitsStored = 8
+    ds.HighBit = 7
+    
+    pixel_data = np.zeros((256, 256), dtype=np.uint8)
+    pixel_data[:, :] = 128
+    ds.PixelData = pixel_data.tobytes()
+    
+    buffer = io.BytesIO()
+    ds.is_little_endian = True
+    ds.is_implicit_VR = True
+    ds.save_as(buffer, write_like_original=False)
+    return buffer.getvalue()
 
 async def run_pipeline_test():
     # Setup test directories
@@ -120,11 +175,13 @@ async def run_pipeline_test():
     print("Encryption successful.")
 
     print("\n--- 2. Embedding payload in video & audio ---")
+    dicom_uid = "1.2.826.0.1.3680043.8.498.1.12345"
+    dicom_bytes = create_dummy_dicom("cover.dcm", uid=dicom_uid)
     cover_file = UploadFile(
-        filename="cover.png",
-        file=io.BytesIO(cover_bytes),
-        size=len(cover_bytes),
-        headers=Headers({"content-type": "image/png"})
+        filename="cover.dcm",
+        file=io.BytesIO(dicom_bytes),
+        size=len(dicom_bytes),
+        headers=Headers({"content-type": "application/dicom"})
     )
 
     audio_file = UploadFile(
@@ -156,7 +213,39 @@ async def run_pipeline_test():
         headers=Headers({"content-type": "video/mp4"})
     )
 
-    extract_res = await extract_payload_api(image=video_upload_file, current_user="test_patient")
+    dicom_upload_file = UploadFile(
+        filename="verify.dcm",
+        file=io.BytesIO(dicom_bytes),
+        size=len(dicom_bytes),
+        headers=Headers({"content-type": "application/dicom"})
+    )
+
+    print("\n--- 3a. Verify extraction failure with mismatched DICOM ---")
+    mismatched_dicom_bytes = create_dummy_dicom("mismatched.dcm", uid="9.9.999.9.999.9.99999")
+    mismatched_dicom_file = UploadFile(
+        filename="mismatched.dcm",
+        file=io.BytesIO(mismatched_dicom_bytes),
+        size=len(mismatched_dicom_bytes),
+        headers=Headers({"content-type": "application/dicom"})
+    )
+    
+    # Check failure
+    failed_extract_res = await extract_payload_api(
+        image=video_upload_file,
+        dicom=mismatched_dicom_file,
+        current_user="test_patient"
+    )
+    assert "error" in failed_extract_res, "Expected error for mismatched DICOM verification, but it succeeded!"
+    print("Mismatched DICOM rejected correctly:", failed_extract_res["error"])
+
+    # Reset file pointer for the real extraction
+    video_upload_file.file.seek(0)
+    
+    extract_res = await extract_payload_api(
+        image=video_upload_file,
+        dicom=dicom_upload_file,
+        current_user="test_patient"
+    )
     assert "error" not in extract_res, f"Extraction failed: {extract_res}"
     extracted_payload = extract_res["payload"]
     print("Extraction successful.")

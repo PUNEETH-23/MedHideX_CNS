@@ -197,13 +197,13 @@ uvicorn app:app --reload
 Backend URL:
 
 ```text
-http://127.0.0.1:8000
+https://localhost:8000
 ```
 
 API docs:
 
 ```text
-http://127.0.0.1:8000/docs
+https://localhost:8000/docs
 ```
 
 ## Run Frontend
@@ -219,7 +219,7 @@ npm run dev
 Frontend URL:
 
 ```text
-http://127.0.0.1:5173
+https://localhost:5173
 ```
 
 ## Steganography Flow

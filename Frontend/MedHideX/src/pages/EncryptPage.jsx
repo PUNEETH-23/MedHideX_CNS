@@ -140,10 +140,10 @@ function EncryptPage() {
             fileName={documentFile?.name}
           />
 
-          <StepLabel n={2} text="Upload Cover Image" />
+          <StepLabel n={2} text="Upload Cover DICOM Image" />
           <UploadSlot
-            label="Cover Image"
-            accept="image/*"
+            label="DICOM Image (.dcm)"
+            accept=".dcm"
             onChange={e => setImageFile(e.target.files[0])}
             fileName={imageFile?.name}
           />
