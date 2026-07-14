@@ -3,16 +3,16 @@ import { MedShell, GLOBAL_CSS } from "./Medshell";
 
 const features = [
   ["AES-256 Encryption", "Medical documents are encrypted before they ever enter the steganography pipeline."],
-  ["RSA Key Protection", "The AES key is protected with RSA-2048 for secure transport."],
+  ["DICOM & Hashing Verification", "Linking generated stego videos to the original DICOM's unique UID hash in MongoDB."],
   ["Adaptive LSB Embedding", "Payloads are hidden inside medical images using image-aware multi-bit embedding."],
-  ["Integrity Verification", "SHA-256 hashing verifies that recovered documents were not modified."],
+  ["Authenticity & Ownership", "Decryption requires the original matching DICOM image to verify ownership and match hashes."],
 ];
 
 const steps = [
   "Register and log in to unlock the secure workspace.",
-  "Upload a medical document and cover image.",
-  "Download the generated stego image and mask file.",
-  "Extract and decrypt the document from the receiver workflow.",
+  "Upload a medical document, a DICOM (.dcm) cover image, and carrier audio.",
+  "Embed the payload; the server converts the DICOM to PNG and maps the stego video hash to the DICOM UID hash.",
+  "Extract and decrypt the document by providing both the stego video and the matching original DICOM (.dcm) file.",
 ];
 
 function LandingPage() {
@@ -70,6 +70,7 @@ function LandingPage() {
             <span>React</span>
             <span>FastAPI</span>
             <span>MongoDB</span>
+            <span>pydicom</span>
             <span>AES-256</span>
             <span>RSA-2048</span>
             <span>OpenCV</span>
