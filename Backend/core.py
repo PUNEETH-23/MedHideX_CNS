@@ -22,6 +22,19 @@ ALLOWED_IMAGE_TYPES = (
     "image/jpg",
 )
 
+ALLOWED_AUDIO_TYPES = (
+    "audio/mpeg",
+    "audio/mp3",
+    "audio/wav",
+    "audio/wave",
+    "audio/x-wav",
+    "audio/wan",
+)
+
+ALLOWED_VIDEO_TYPES = (
+    "video/mp4",
+)
+
 
 def setup_storage():
     for directory in APP_DIRS:

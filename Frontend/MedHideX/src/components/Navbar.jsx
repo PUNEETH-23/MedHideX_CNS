@@ -1,8 +1,10 @@
+import { getCookie, eraseCookie } from "../api/api.js";
+
 function Navbar() {
-  const isLoggedIn = Boolean(localStorage.getItem("medhidex_token"));
+  const isLoggedIn = Boolean(getCookie("medhidex_token"));
 
   const logout = () => {
-    localStorage.removeItem("medhidex_token");
+    eraseCookie("medhidex_token");
     window.location.href = "/";
   };
 

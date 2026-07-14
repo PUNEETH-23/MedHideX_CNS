@@ -1,0 +1,30 @@
+Hey, for the binary mask, it should be embedded into an audio file provided by the user. The system should then generate a video whose duration matches the audio length. Every frame in the video will contain a steganographic image.
+
+When the audio is provided, the number of video frames is calculated using the audio duration and a frame rate of 30 FPS. The generated video will reserve its first frame for metadata about all the remaining frames.
+
+The encrypted data is divided into N chunks, where N is equal to the total number of frames minus one. These chunks are randomly assigned to different frames. The metadata stored in the first frame contains information about the chunk distribution and frame mapping.
+
+This system should work for most file formats.
+
+Workflow:
+
+The input file (document, image, or any supported file format) is first encrypted.
+A binary mask is generated from the image.
+The embedding capacity is calculated using:
+Number of embeddable pixels
+Number of LSB bits used for embedding (such as 1-bit or 3-bit LSB)
+Based on the calculated embedding capacity, the encrypted data is divided into chunks.
+The number of chunks is calculated by dividing the total encrypted bit size by the calculated chunk size and adding one.
+A random sequence is generated for chunk placement.
+This random sequence is stored in the first frame of the video as metadata.
+The steganographic embedding process is then performed according to this randomized order.
+The binary mask is also embedded into the audio.
+
+Video Generation Details:
+
+Total video frames = Number of chunks + 1
+The first frame stores metadata.
+Remaining frames contain the encrypted steganographic chunks.
+Video frame rate: 60 FPS
+Video duration matches the provided audio length.
+If the generated video becomes longer than the audio duration, the audio will automatically repeat until the video ends.

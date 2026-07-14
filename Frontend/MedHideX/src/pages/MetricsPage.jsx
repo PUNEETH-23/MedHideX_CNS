@@ -22,6 +22,12 @@ function UploadSlot({ label, accept, onChange, fileName }) {
   );
 }
 
+function formatMetric(value) {
+  if (value == null) return "--";
+  if (value === "Infinity" || value === "-Infinity") return value;
+  return Number(value).toFixed(2);
+}
+
 /* ── Gauge card ── */
 function GaugeCard({ title, value, unit, min, max, color, description }) {
   const pct = Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100));
@@ -59,7 +65,7 @@ function GaugeCard({ title, value, unit, min, max, color, description }) {
           )}
           {/* centre value */}
           <text x="80" y="68" textAnchor="middle" fill="#e8f6fa" fontSize="22" fontWeight="700" fontFamily="DM Sans, sans-serif">
-            {value != null ? Number(value).toFixed(2) : "--"}
+            {formatMetric(value)}
           </text>
           <text x="80" y="82" textAnchor="middle" fill="#3a6a7a" fontSize="10" fontFamily="DM Sans, sans-serif">
             {unit}
@@ -85,16 +91,25 @@ function GaugeCard({ title, value, unit, min, max, color, description }) {
 function MetricsPage() {
   const [originalImage, setOriginalImage] = useState(null);
   const [stegoImage, setStegoImage] = useState(null);
+  const [originalAudio, setOriginalAudio] = useState(null);
+  const [stegoAudio, setStegoAudio] = useState(null);
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const canCalculate = (originalImage && stegoImage) || (originalAudio && stegoAudio);
 
   const handleMetrics = async () => {
     try {
       setLoading(true); setError("");
       const formData = new FormData();
-      formData.append("original_image", originalImage);
-      formData.append("stego_image", stegoImage);
+      if (originalImage && stegoImage) {
+        formData.append("original_image", originalImage);
+        formData.append("stego_image", stegoImage);
+      }
+      if (originalAudio && stegoAudio) {
+        formData.append("original_audio", originalAudio);
+        formData.append("stego_audio", stegoAudio);
+      }
       const response = await API.post("/metrics", formData);
       if (response.data.error) { setError(response.data.error); return; }
       setMetrics(response.data.metrics);
@@ -120,7 +135,7 @@ function MetricsPage() {
           </div>
           <h1 className="med-h1">Image Quality <span style={{ color: "#818cf8" }}>Metrics</span></h1>
           <p className="med-subhead">
-            Compute PSNR and SSIM to evaluate steganographic imperceptibility between original and stego images.
+            Compute image and audio comparison metrics to evaluate steganographic imperceptibility.
           </p>
         </div>
 
@@ -139,15 +154,29 @@ function MetricsPage() {
               fileName={stegoImage?.name}
             />
           </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
+            <UploadSlot
+              label="Original Audio (MP3 or WAV)"
+              accept="audio/wav,audio/mpeg,.wav,.mp3"
+              onChange={e => setOriginalAudio(e.target.files[0])}
+              fileName={originalAudio?.name}
+            />
+            <UploadSlot
+              label="Stego Audio (MP3 or WAV)"
+              accept="audio/wav,audio/mpeg,.wav,.mp3"
+              onChange={e => setStegoAudio(e.target.files[0])}
+              fileName={stegoAudio?.name}
+            />
+          </div>
 
           <div className="med-divider" />
 
           <button
             className="med-btn"
             onClick={handleMetrics}
-            disabled={loading || !originalImage || !stegoImage}
+            disabled={loading || !canCalculate}
             style={{
-              opacity: (!originalImage || !stegoImage) ? 0.5 : 1,
+              opacity: !canCalculate ? 0.5 : 1,
               background: "linear-gradient(135deg, #3730a3, #6366f1)",
             }}
           >
@@ -183,9 +212,25 @@ function MetricsPage() {
             color="#00d4e0"
             description="Structural Similarity Index. Values close to 1.0 mean the images are perceptually identical."
           />
+          <GaugeCard
+            title="Audio SNR"
+            value={metrics?.Audio_SNR}
+            unit="dB"
+            min={20} max={100}
+            color="#34d399"
+            description="Signal-to-noise ratio between original and stego audio. Higher values indicate lower audible distortion."
+          />
+          <GaugeCard
+            title="Audio Correlation"
+            value={metrics?.Audio_Correlation}
+            unit="index"
+            min={0} max={1}
+            color="#f59e0b"
+            description="Waveform similarity between original and stego audio. Values close to 1.0 indicate very similar audio."
+          />
         </div>
 
-        {metrics && (
+        {metrics?.PSNR && metrics?.SSIM && (
           <div style={{ marginTop: 20, padding: "16px 20px", borderRadius: 12,
             background: "rgba(129,140,248,0.05)", border: "1px solid rgba(129,140,248,0.15)",
             fontSize: 13, color: "#5a6a7a", lineHeight: 1.6 }}>

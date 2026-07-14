@@ -9,6 +9,8 @@ router = APIRouter()
 DOWNLOAD_DIRS = {
     "stego": Path("stego"),
     "mask": Path("stego"),
+    "audio": Path("stego"),
+    "video": Path("stego"),
     "extracted": Path("extracted"),
 }
 
@@ -22,7 +24,7 @@ def download_file(file_type: str, filename: str):
     file_path = directory / Path(filename).name
     if not file_path.exists() or not file_path.is_file():
         raise HTTPException(status_code=404, detail="File not found")
-
+    print("download")
     return FileResponse(
         file_path,
         filename=file_path.name,

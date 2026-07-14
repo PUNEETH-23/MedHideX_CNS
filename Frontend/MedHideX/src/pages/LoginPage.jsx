@@ -1,7 +1,7 @@
 import { useState } from "react";
-import API from "../api/api";
 import Navbar from "../components/Navbar";
 import { MedShell, GLOBAL_CSS } from "./Medshell";
+import { setCookie } from "../api/api";
 
 function LoginPage() {
   const [username, setUsername] = useState("");
@@ -14,16 +14,33 @@ function LoginPage() {
     event.preventDefault();
     setLoading(true); setMessage(""); setError("");
     try {
-      const formData = new FormData();
-      formData.append("username", username);
-      formData.append("password", password);
-      const response = await API.post("/login", formData);
-      if (response.data.error) { setError(response.data.error); return; }
-      localStorage.setItem("medhidex_token", response.data.token);
-      setMessage(response.data.message);
-      window.location.href = "/dashboard";
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://localhost:8000"}/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      });
+
+      const result = await response.json();
+      if (!response.ok) {
+        setError(result.detail || result.error || "Invalid username or password.");
+        return;
+      }
+
+      if (result.access_token) {
+        setCookie("medhidex_token", result.access_token, 3600);
+        setMessage("Login Successful");
+        window.location.href = "/dashboard";
+        return;
+      }
+
+      setError("Login failed. Please try again.");
     } catch (e) {
-      setError("Unable to login. Check if the backend is running.");
+      setError("Unable to login. Check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -40,9 +57,9 @@ function LoginPage() {
           <div style={{ textAlign: "center", marginBottom: 36 }}>
             <div style={logoRing}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#00d4e0" strokeWidth="1.8">
-                <rect x="3" y="11" width="18" height="11" rx="2"/>
-                <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                <circle cx="12" cy="16" r="1.5" fill="#00d4e0" stroke="none"/>
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <circle cx="12" cy="16" r="1.5" fill="#00d4e0" stroke="none" />
               </svg>
             </div>
             <h1 style={logoText}>Med<span style={{ color: "#00d4e0" }}>Hide</span>X<span style={{ color: "#34d399" }}>+</span></h1>
@@ -50,8 +67,10 @@ function LoginPage() {
           </div>
 
           <div className="med-card" style={{ padding: "36px 32px" }}>
-            <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 24, color: "#e8f6fa",
-              fontFamily: "'DM Serif Display', serif" }}>
+            <h2 style={{
+              fontSize: 22, fontWeight: 700, marginBottom: 24, color: "#e8f6fa",
+              fontFamily: "'DM Serif Display', serif"
+            }}>
               Sign In
             </h2>
 
@@ -63,7 +82,7 @@ function LoginPage() {
                 type="text"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="Enter username"
+                placeholder="Enter your username"
                 required
               />
 

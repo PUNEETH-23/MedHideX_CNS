@@ -1,11 +1,10 @@
 import cv2
 
 from steganography.mask_generator import generate_binary_mask
-from steganography.image_analysis import detect_edges
-from steganography.bit_utils import text_to_binary
+from steganography.bit_utils import add_length_prefix, huffman_compress_text
 
 
-DELIMITER = "1111111111111110"
+BITS_PER_CHANNEL = 3
 
 
 def adaptive_embed(
@@ -18,11 +17,8 @@ def adaptive_embed(
 
     mask = generate_binary_mask(image_path)
 
-    edges = detect_edges(image_path)
-
-    binary_payload = text_to_binary(payload)
-
-    binary_payload += DELIMITER
+    compressed_payload = huffman_compress_text(payload)
+    binary_payload = add_length_prefix(compressed_payload)
 
     data_index = 0
 
@@ -34,12 +30,6 @@ def adaptive_embed(
 
             if mask[i][j] == 1:
 
-                # Adaptive embedding
-                if edges[i][j] > 0:
-                    bits_to_embed = 3
-                else:
-                    bits_to_embed = 2
-
                 for channel in range(3):
 
                     if data_index >= len(binary_payload):
@@ -47,29 +37,33 @@ def adaptive_embed(
 
                     bits = binary_payload[
                         data_index:
-                        data_index + bits_to_embed
+                        data_index + BITS_PER_CHANNEL
                     ]
 
                     bits = bits.ljust(
-                        bits_to_embed,
+                        BITS_PER_CHANNEL,
                         '0'
                     )
 
                     pixel = image[i][j][channel]
 
                     pixel = (
-                        pixel >> bits_to_embed
-                    ) << bits_to_embed
+                        pixel >> BITS_PER_CHANNEL
+                    ) << BITS_PER_CHANNEL
 
                     pixel |= int(bits, 2)
 
                     image[i][j][channel] = pixel
 
-                    data_index += bits_to_embed
+                    data_index += BITS_PER_CHANNEL
+
+    if data_index < len(binary_payload):
+        raise ValueError("Payload exceeds image capacity")
 
     cv2.imwrite(output_path, image)
 
     return {
         "embedded_bits": data_index,
+        "compressed_bits": len(compressed_payload),
         "mask": mask.tolist()
     }

@@ -58,3 +58,8 @@ temp/
 Thumbs.db
 .vscode/
 .idea/
+
+# AI generated summaries and chat screenshots
+summary.md
+ChatGPT Image*.png
+

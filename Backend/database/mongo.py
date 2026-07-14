@@ -13,3 +13,6 @@ reports_collection = db["reports"]
 users_collection = db["users"]
 
 files_collection = db["files"]
+
+dicom_videos_collection = db["dicom_videos"]
+

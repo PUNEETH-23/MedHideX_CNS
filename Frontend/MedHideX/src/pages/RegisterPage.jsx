@@ -1,5 +1,4 @@
 import { useState } from "react";
-import API from "../api/api";
 import Navbar from "../components/Navbar";
 import { MedShell, GLOBAL_CSS } from "./Medshell";
 
@@ -17,16 +16,28 @@ function RegisterPage() {
     if (password !== reEnterPassword) { setError("Passwords do not match"); return; }
     setLoading(true);
     try {
-      const formData = new FormData();
-      formData.append("username", username);
-      formData.append("password", password);
-      formData.append("re_enter_password", reEnterPassword);
-      const response = await API.post("/register", formData);
-      if (response.data.error) { setError(response.data.error); return; }
-      setMessage(response.data.message);
+      const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || "https://localhost:8000"}/register_profile`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+          password_confirm: reEnterPassword,
+        }),
+      });
+
+      const responseData = await response.json();
+      if (!response.ok) {
+        setError(responseData.error || responseData.detail || "Registration failed.");
+        return;
+      }
+
+      setMessage("Registration Successful! You can now log in.");
       setUsername(""); setPassword(""); setReEnterPassword("");
     } catch (e) {
-      setError("Unable to register. Check if the backend is running.");
+      setError("Unable to register. Check your internet connection.");
     } finally {
       setLoading(false);
     }
@@ -35,8 +46,8 @@ function RegisterPage() {
   /* password strength */
   const strength = password.length === 0 ? 0
     : password.length < 6 ? 1
-    : password.length < 10 ? 2
-    : 3;
+      : password.length < 10 ? 2
+        : 3;
   const strengthLabel = ["", "Weak", "Moderate", "Strong"][strength];
   const strengthColor = ["", "#f08080", "#f0c040", "#34d399"][strength];
 
@@ -51,9 +62,9 @@ function RegisterPage() {
           <div style={{ textAlign: "center", marginBottom: 36 }}>
             <div style={logoRing}>
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#34d399" strokeWidth="1.8">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-                <circle cx="9" cy="7" r="4"/>
-                <line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/>
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
               </svg>
             </div>
             <h1 style={logoText}>Create Account</h1>
@@ -110,8 +121,10 @@ function RegisterPage() {
                 required
               />
               {reEnterPassword.length > 0 && (
-                <p style={{ fontSize: 11, marginBottom: 18,
-                  color: password === reEnterPassword ? "#34d399" : "#f08080" }}>
+                <p style={{
+                  fontSize: 11, marginBottom: 18,
+                  color: password === reEnterPassword ? "#34d399" : "#f08080"
+                }}>
                   {password === reEnterPassword ? "✓ Passwords match" : "✗ Passwords don't match"}
                 </p>
               )}
@@ -119,8 +132,10 @@ function RegisterPage() {
               <button
                 className="med-btn"
                 type="submit"
-                style={{ width: "100%", justifyContent: "center",
-                  background: "linear-gradient(135deg, #065f46, #059669)" }}
+                style={{
+                  width: "100%", justifyContent: "center",
+                  background: "linear-gradient(135deg, #065f46, #059669)"
+                }}
                 disabled={loading}
               >
                 {loading

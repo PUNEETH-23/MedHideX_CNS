@@ -1,13 +1,17 @@
 import cv2
 
 
+BITS_PER_CHANNEL = 3
+MASK_USAGE_RATIO = 0.5
+
+
 def estimate_capacity(image_path):
 
     image = cv2.imread(image_path)
 
     rows, cols, channels = image.shape
 
-    total_bits = rows * cols * channels * 2
+    total_bits = int(rows * cols * channels * BITS_PER_CHANNEL * MASK_USAGE_RATIO)
 
     total_bytes = total_bits // 8
 

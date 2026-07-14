@@ -1,10 +1,12 @@
 import cv2
 
-from steganography.image_analysis import detect_edges
-from steganography.bit_utils import binary_to_text
+from steganography.bit_utils import (
+    huffman_decompress_text,
+    read_length_prefixed_binary,
+)
 
 
-DELIMITER = "1111111111111110"
+BITS_PER_CHANNEL = 3
 
 
 def adaptive_extract(
@@ -13,8 +15,6 @@ def adaptive_extract(
 ):
 
     image = cv2.imread(image_path)
-
-    edges = detect_edges(image_path)
 
     binary_data = ""
 
@@ -26,11 +26,6 @@ def adaptive_extract(
 
             if mask[i][j] == 1:
 
-                if edges[i][j] > 0:
-                    bits_to_extract = 3
-                else:
-                    bits_to_extract = 2
-
                 for channel in range(3):
 
                     pixel = image[i][j][channel]
@@ -39,19 +34,15 @@ def adaptive_extract(
                         int(pixel),
                         "08b"
                     )[
-                        -bits_to_extract:
+                        -BITS_PER_CHANNEL:
                     ]
 
                     binary_data += extracted_bits
 
-    delimiter_index = binary_data.find(
-        DELIMITER
-    )
+    compressed_payload = read_length_prefixed_binary(binary_data)
 
-    binary_data = binary_data[:delimiter_index]
-
-    extracted_payload = binary_to_text(
-        binary_data
+    extracted_payload = huffman_decompress_text(
+        compressed_payload
     )
 
     return extracted_payload

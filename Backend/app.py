@@ -6,6 +6,7 @@ from routes.crypto_routes import router as crypto_router
 from routes.download_routes import router as download_router
 from routes.health_routes import router as health_router
 from routes.metrics_routes import router as metrics_router
+from routes.profile_routes import router as profile_router
 from routes.report_routes import router as report_router
 from routes.stego_routes import router as stego_router
 
@@ -22,6 +23,7 @@ app.add_middleware(
 
 app.include_router(health_router)
 app.include_router(auth_router)
+app.include_router(profile_router)
 app.include_router(crypto_router)
 app.include_router(stego_router)
 app.include_router(metrics_router)
